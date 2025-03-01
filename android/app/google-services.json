@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "703596493086",
+    "project_id": "ro-banking-app",
+    "storage_bucket": "ro-banking-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:703596493086:android:57989a2a5cd6a411a4b10f",
+        "android_client_info": {
+          "package_name": "com.example.banking_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCeGEofncaIz30D5kAxWDzYodVH6GSuohA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

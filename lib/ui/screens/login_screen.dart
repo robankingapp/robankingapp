@@ -27,13 +27,16 @@ class _LoginScreenState extends State<LoginScreen> {
         password: _passwordController.text.trim(),
       );
 
+      // Pass the authenticated user to HomeScreen.
       if (userCredential.user != null) {
-        Navigator.pushReplacement(
+        Navigator.pushAndRemoveUntil(
           context,
           MaterialPageRoute(
-            builder: (context) => HomeScreen(),
+            builder: (context) => HomeScreen(user: userCredential.user),
           ),
+          (Route<dynamic> route) => false,
         );
+        ;
       }
     } on FirebaseAuthException catch (e) {
       setState(() {
@@ -55,10 +58,19 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Email", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            TextField(controller: _emailController, keyboardType: TextInputType.emailAddress),
+            Text(
+              "Email",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            TextField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+            ),
             SizedBox(height: 20),
-            Text("Password", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(
+              "Password",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             TextField(controller: _passwordController, obscureText: true),
             SizedBox(height: 20),
             _errorMessage.isNotEmpty
@@ -66,16 +78,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 : SizedBox(),
             SizedBox(height: 30),
             Center(
-              child: _loading
-                  ? CircularProgressIndicator()
-                  : ElevatedButton(
-                onPressed: _login,
-                child: Text("Login"),
-              ),
+              child:
+                  _loading
+                      ? CircularProgressIndicator()
+                      : ElevatedButton(onPressed: _login, child: Text("Login")),
             ),
             SizedBox(height: 20),
-
-            // ✅ "Sign Up" Button
             Center(
               child: TextButton(
                 onPressed: () {

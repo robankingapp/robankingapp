@@ -3,16 +3,18 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class HomeScreen extends StatefulWidget {
+  final User? user; // Now we accept a 'user' parameter
+
+  HomeScreen({Key? key, required this.user}) : super(key: key);
+
   @override
   _HomeScreenState createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
   String balance = "Loading...";
-  String currency = "USD"; // Placeholder, will fetch from DB
+  String currency = "RON"; // Default currency
   String name = "User";
   String profilePicture = "";
   List<Map<String, dynamic>> transactions = [];
@@ -24,62 +26,64 @@ class _HomeScreenState extends State<HomeScreen> {
     _fetchTransactions();
   }
 
-
   Future<void> _fetchUserData() async {
-    var user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      DocumentSnapshot userDoc = await _firestore.collection('users').doc(user.uid).get();
+    var user = widget.user ?? FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      print("❌ Error: User is not authenticated.");
+      return;
+    }
 
-      if (userDoc.exists && userDoc.data() != null) {
-        Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+    DocumentSnapshot userDoc =
+    await _firestore.collection('users').doc(user.uid).get();
 
-        setState(() {
-          name = userData['name'] ?? "User"; // ✅ Fix Name Display
-          balance = userData['funds']?.toString() ?? "0"; // ✅ Fix Balance Display
-          currency = userData.containsKey('currency') ? userData['currency'] : "USD"; // ✅ Use Default Currency
-          profilePicture = userData['profilePictureUrl'] ?? "";
-        });
-      }
+    if (userDoc.exists && userDoc.data() != null) {
+      Map<String, dynamic> userData = userDoc.data() as Map<String, dynamic>;
+      setState(() {
+        name = userData['name'] ?? "User";
+        balance = userData['funds']?.toString() ?? "0";
+        currency = userData.containsKey('currency') ? userData['currency'] : "RON";
+        profilePicture = userData['profilePictureUrl'] ?? "";
+      });
+    } else {
+      print("❌ Error: User document not found in Firestore.");
     }
   }
 
   void _fetchTransactions() {
-    var user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      FirebaseFirestore.instance
-          .collection('transactions')
-          .where('senderId', isEqualTo: user.uid)
-          .orderBy('date', descending: true)
-          .snapshots()
-          .listen((QuerySnapshot snapshot) {
-        if (snapshot.docs.isNotEmpty) {
-          print("📌 Transactions found: ${snapshot.docs.length}");
-          setState(() {
-            transactions = snapshot.docs.map((doc) {
-              Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-
-              return {
-                'senderName': data['senderName'] ?? "Unknown Sender",
-                'senderSurname': data['senderSurname'] ?? "",
-                'receiverName': data['receiverName'] ?? "Unknown Receiver",
-                'receiverSurname': data['receiverSurname'] ?? "",
-                'senderIban': data['senderIban'] ?? "No IBAN",
-                'receiverIban': data['receiverIban'] ?? "No IBAN",
-                'amount': data['amount'] ?? 0.0,
-                'date': data['date'] ?? Timestamp.now(), // Default to now if missing
-              };
-            }).toList();
-          });
-        } else {
-          print("⚠️ No transactions found for user ${user.uid}");
-          setState(() {
-            transactions = [];
-          });
-        }
-      }, onError: (error) {
-        print("❌ Error fetching transactions: $error");
-      });
+    var user = widget.user ?? FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      print("⚠️ No user is logged in. Cannot fetch transactions.");
+      return;
     }
+
+    _firestore
+        .collection('transactions')
+        .where('senderId', isEqualTo: user.uid)
+        .orderBy('date', descending: true)
+        .snapshots()
+        .listen((QuerySnapshot snapshot) {
+      if (snapshot.docs.isNotEmpty) {
+        setState(() {
+          transactions = snapshot.docs.map((doc) {
+            Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
+            return {
+              'senderName': data['senderName'] ?? "Unknown Sender",
+              'receiverName': data['receiverName'] ?? "Unknown Receiver",
+              'senderIban': data['senderIban'] ?? "No IBAN",
+              'receiverIban': data['receiverIban'] ?? "No IBAN",
+              'amount': data['amount'] ?? 0.0,
+              'date': data['date'] ?? Timestamp.now(),
+            };
+          }).toList();
+        });
+      } else {
+        setState(() {
+          transactions = [];
+        });
+      }
+    }, onError: (error) {
+      print("❌ Error fetching transactions: $error");
+    });
   }
 
   Widget _buildTransactionList() {
@@ -88,77 +92,71 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Icon(Icons.history, size: 80, color: Colors.grey[400]),
           SizedBox(height: 10),
-          Text(
-            "No transactions yet.",
-            style: TextStyle(color: Colors.grey[600], fontSize: 16),
-          ),
+          Text("No transactions yet.",
+              style: TextStyle(color: Colors.grey[600], fontSize: 16)),
         ],
       );
     }
 
-    return Column(
-      children: transactions.map((tx) {
+    return ListView.builder(
+      itemCount: transactions.length,
+      itemBuilder: (context, index) {
+        var tx = transactions[index];
         bool isIncome = (tx['amount'] ?? 0) > 0;
-        String senderName = tx['senderName'] ?? "Unknown Sender";
-        String senderSurname = tx['senderSurname'] ?? "";
-        String receiverName = tx['receiverName'] ?? "Unknown Receiver";
-        String receiverSurname = tx['receiverSurname'] ?? "";
-        String displayName = isIncome ? "$senderName $senderSurname" : "$receiverName $receiverSurname";
+        String displayName = isIncome ? tx['senderName'] : tx['receiverName'];
         String displayIban = isIncome ? tx['senderIban'] : tx['receiverIban'];
 
-        return ListTile(
-          leading: CircleAvatar(
-            backgroundColor: isIncome ? Colors.green : Colors.red,
-            child: Text(
-              displayName[0], // First letter of name
-              style: TextStyle(color: Colors.white),
+        return Card(
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: isIncome ? Colors.green : Colors.red,
+              child: Text(
+                displayName.isNotEmpty ? displayName[0] : "?",
+                style: TextStyle(color: Colors.white),
+              ),
             ),
-          ),
-          title: Text(
-            displayName,
-            style: TextStyle(fontWeight: FontWeight.bold),
-          ),
-          subtitle: Text("IBAN: $displayIban"),
-          trailing: Text(
-            "${isIncome ? "+" : "-"}${tx['amount']} RON",
-            style: TextStyle(
-              color: isIncome ? Colors.green : Colors.red,
-              fontWeight: FontWeight.bold,
+            title: Text(
+              displayName,
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text("IBAN: $displayIban"),
+            trailing: Text(
+              "${isIncome ? "+" : "-"}${tx['amount']} RON",
+              style: TextStyle(
+                color: isIncome ? Colors.green : Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         );
-      }).toList(),
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100], // Light background
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         backgroundColor: Colors.blue,
         elevation: 0,
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              "Hello, $name!",
-              style: TextStyle(color: Colors.white, fontSize: 18),
-            ),
+            Text("Hello, $name!",
+                style: TextStyle(color: Colors.white, fontSize: 18)),
             GestureDetector(
               onTap: () {
-                Navigator.pushNamed(context, '/profile'); // Navigate to profile
+                Navigator.pushNamed(context, '/profile');
               },
               child: CircleAvatar(
                 backgroundColor: Colors.white,
-                backgroundImage:
-                    profilePicture.isNotEmpty
-                        ? NetworkImage(profilePicture)
-                        : null,
-                child:
-                    profilePicture.isEmpty
-                        ? Icon(Icons.person, color: Colors.grey)
-                        : null,
+                backgroundImage: profilePicture.isNotEmpty
+                    ? NetworkImage(profilePicture)
+                    : null,
+                child: profilePicture.isEmpty
+                    ? Icon(Icons.person, color: Colors.grey)
+                    : null,
               ),
             ),
           ],
@@ -166,7 +164,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: Column(
         children: [
-          // Balance Section
           Container(
             width: double.infinity,
             padding: EdgeInsets.all(20),
@@ -189,17 +186,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 SizedBox(height: 5),
-                Text(
-                  "Your Balance",
-                  style: TextStyle(color: Colors.white70, fontSize: 16),
-                ),
+                Text("Your Balance",
+                    style: TextStyle(color: Colors.white70, fontSize: 16)),
               ],
             ),
           ),
-
           SizedBox(height: 20),
-
-          // Quick Actions
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Row(
@@ -208,46 +200,32 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildQuickAction("Send Money", Icons.send, Colors.blue, () {
                   Navigator.pushNamed(context, '/sendMoney');
                 }),
-                _buildQuickAction(
-                  "Request Money",
-                  Icons.request_page,
-                  Colors.blueAccent,
-                  () {
-                    Navigator.pushNamed(context, '/requestMoney');
-                  },
-                ),
+                _buildQuickAction("Request Money", Icons.request_page, Colors.blueAccent, () {
+                  Navigator.pushNamed(context, '/requestMoney');
+                }),
                 _buildQuickAction("More", Icons.more_horiz, Colors.grey, () {
                   // Future feature
                 }),
               ],
             ),
           ),
-
           SizedBox(height: 20),
-
-          // Activity Section
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  "Activity",
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
+                Text("Activity",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 TextButton(
                   onPressed: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/transactions',
-                    ); // Full transaction list
+                    Navigator.pushNamed(context, '/transactions');
                   },
                   child: Text("View all"),
                 ),
               ],
             ),
           ),
-
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -256,24 +234,15 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-
-      // Bottom Navigation
       bottomNavigationBar: BottomNavigationBar(
         selectedItemColor: Colors.blue,
         unselectedItemColor: Colors.grey,
         currentIndex: 0,
-        // Home selected
         items: [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
           BottomNavigationBarItem(icon: Icon(Icons.people), label: "People"),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.credit_card),
-            label: "Cards",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: "Settings",
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.credit_card), label: "Cards"),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: "Settings"),
         ],
         onTap: (index) {
           if (index == 1) Navigator.pushNamed(context, '/people');
@@ -284,12 +253,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildQuickAction(
-    String label,
-    IconData icon,
-    Color color,
-    VoidCallback onPressed,
-  ) {
+  Widget _buildQuickAction(String label, IconData icon, Color color, VoidCallback onPressed) {
     return GestureDetector(
       onTap: onPressed,
       child: Column(
@@ -304,10 +268,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Icon(icon, color: Colors.white),
           ),
           SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-          ),
+          Text(label, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
         ],
       ),
     );

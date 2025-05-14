@@ -31,7 +31,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     String countryCode = "IR";
     String randomDigits = "${random.nextInt(90) + 10}"; // Random 2-digit number (10-99)
     String accountNumber = List.generate(8, (_) => random.nextInt(10)).join(); // Random 8-digit number
-
     return "RONB $countryCode$randomDigits-$accountNumber";
   }
 
@@ -52,7 +51,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
       User? user = userCredential.user;
       if (user != null) {
         String iban = _generateIBAN(user.uid);
-
         await _firestore.collection('users').doc(user.uid).set({
           'uid': user.uid,
           'name': _nameController.text.trim(),
@@ -61,13 +59,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
           'iban': iban,
           'funds': 0.0,
           'profilePicture': "",
-          'role': _isAdmin ? "admin" : "user", // ✅ Save role
+          'role': _isAdmin ? "admin" : "user",
           'createdAt': FieldValue.serverTimestamp(),
         });
 
         print("✅ User Created: ${user.uid}, IBAN: $iban, Role: ${_isAdmin ? 'Admin' : 'User'}");
 
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => HomeScreen()));
+        // Pass the authenticated user to HomeScreen.
+        Navigator.pushReplacement(
+            context, MaterialPageRoute(builder: (context) => HomeScreen(user: user)));
       }
     } on FirebaseAuthException catch (e) {
       _showError(e.message ?? "Sign-up failed. Please try again.");
@@ -76,7 +76,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     }
   }
 
-  /// ✅ Validate Fields
   bool _validateAllFields() {
     if (!_validateField(_nameController, _validateName, 0)) return false;
     if (!_validateField(_surnameController, _validateName, 1)) return false;
@@ -85,7 +84,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return true;
   }
 
-  /// ✅ Validate Individual Field
   bool _validateField(TextEditingController controller, String? Function(String?) validator, int step) {
     String? error = validator(controller.text);
     if (error != null) {
@@ -99,7 +97,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return true;
   }
 
-  /// ✅ Show Error Banner
   void _showError(String message) {
     setState(() {
       _errorMessage = message;
@@ -111,14 +108,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
     });
   }
 
-  /// ✅ Validate Name & Surname (Only letters, no spaces or special characters)
   String? _validateName(String? value) {
     if (value == null || value.isEmpty) return "Field cannot be empty.";
     if (!RegExp(r"^[A-Za-z]+$").hasMatch(value)) return "Only letters allowed.";
     return null;
   }
 
-  /// ✅ Validate Email (Must be a valid Gmail address)
   String? _validateEmail(String? value) {
     if (value == null || value.isEmpty) return "Enter your email.";
     if (!RegExp(r"^[a-zA-Z0-9._%+-]+@gmail\.com$").hasMatch(value)) {
@@ -127,7 +122,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return null;
   }
 
-  /// ✅ Validate Password (8+ chars, 1 uppercase, 1 lowercase, 1 number, 1 special char)
   String? _validatePassword(String? value) {
     if (value == null || value.isEmpty) return "Enter your password.";
     if (value.length < 8) return "Must be at least 8 characters.";
@@ -139,14 +133,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   void _onStepContinue() {
     if (_currentStep < 3) {
-      // ✅ Validate only the current step before moving forward
       if (_currentStep == 0 && !_validateField(_nameController, _validateName, 0)) return;
       if (_currentStep == 1 && !_validateField(_surnameController, _validateName, 1)) return;
       if (_currentStep == 2 && !_validateField(_emailController, _validateEmail, 2)) return;
-
       setState(() => _currentStep++);
     } else {
-      _signUp(); // ✅ Last step triggers full validation & sign up
+      _signUp();
     }
   }
 
@@ -156,7 +148,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
       appBar: AppBar(title: Text("Setup Your Account")),
       body: Column(
         children: [
-          // ✅ Animated Error Banner
           AnimatedContainer(
             duration: Duration(milliseconds: 300),
             height: _showErrorBanner ? 50 : 0,
@@ -169,12 +160,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
             )
                 : SizedBox(),
           ),
-
           Expanded(
             child: Stepper(
               type: StepperType.vertical,
               currentStep: _currentStep,
-              onStepContinue: _onStepContinue, // ✅ Updated to validate step-by-step
+              onStepContinue: _onStepContinue,
               onStepCancel: () {
                 if (_currentStep > 0) {
                   setState(() => _currentStep--);
@@ -206,11 +196,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
               ],
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 10.0),
             child: ElevatedButton(
-              onPressed: _signUp,
+              onPressed: _loading ? null : _signUp,
               child: _loading ? CircularProgressIndicator() : Text("Sign Up"),
             ),
           ),

@@ -1,56 +1,61 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 
 class BankService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Future<String> sendMoney(String receiverIban, double amount) async {
+  /// Transfer money from sender to receiver
+  Future<String> transferMoney(String senderId, String receiverIban, double amount) async {
     try {
-      User? user = FirebaseAuth.instance.currentUser;
-      if (user == null) return "User not logged in.";
+      // Get sender document
+      DocumentReference senderDoc = _firestore.collection('users').doc(senderId);
 
-      DocumentSnapshot senderDoc = await _firestore.collection('users').doc(user.uid).get();
-      if (!senderDoc.exists) return "Sender account not found.";
-
-      var senderData = senderDoc.data() as Map<String, dynamic>;
-      double senderBalance = senderData['funds'];
-      String senderIban = senderData['iban'];
-
-      if (senderBalance < amount) return "Insufficient funds.";
-
+      // Find receiver by IBAN
       QuerySnapshot receiverQuery = await _firestore
           .collection('users')
           .where('iban', isEqualTo: receiverIban)
           .limit(1)
           .get();
 
-      if (receiverQuery.docs.isEmpty) return "Receiver IBAN not found.";
-      DocumentSnapshot receiverDoc = receiverQuery.docs.first;
-      String receiverUid = receiverDoc.id;
-      double receiverBalance = receiverDoc['funds'];
+      if (receiverQuery.docs.isEmpty) return "❌ Receiver not found!";
 
-      // Perform the transaction
+      DocumentReference receiverDoc = receiverQuery.docs.first.reference;
+      String receiverId = receiverQuery.docs.first.id;
+
+      // Generate a unique transaction ID
+      String transactionId = _firestore.collection('transactions').doc().id;
+
+      // Run Firestore transaction
       await _firestore.runTransaction((transaction) async {
-        transaction.update(senderDoc.reference, {'funds': senderBalance - amount});
-        transaction.update(receiverDoc.reference, {'funds': receiverBalance + amount});
+        DocumentSnapshot senderSnapshot = await transaction.get(senderDoc);
+        double senderBalance = (senderSnapshot['funds'] as num).toDouble();
+        if (senderBalance < amount) throw Exception("❌ Insufficient funds.");
 
-        String txId = _firestore.collection('transactions').doc().id;
+        DocumentSnapshot receiverSnapshot = await transaction.get(receiverDoc);
+        double receiverBalance = (receiverSnapshot['funds'] as num).toDouble();
 
-        transaction.set(_firestore.collection('transactions').doc(txId), {
-          'txNumber': txId,
+        // Update balances
+        transaction.update(senderDoc, {'funds': senderBalance - amount});
+        transaction.update(receiverDoc, {'funds': receiverBalance + amount});
+
+        // Add transaction record in common "transactions" collection
+        DocumentReference txnRef = _firestore.collection('transactions').doc(transactionId);
+        transaction.set(txnRef, {
+          'txNumber': transactionId,
+          'senderId': senderId,
+          'receiverId': receiverId,
+          'senderIban': senderSnapshot['iban'],
+          'receiverIban': receiverIban,
           'amount': amount,
           'date': FieldValue.serverTimestamp(),
-          'senderId': user.uid,
-          'senderIban': senderIban,
-          'receiverId': receiverUid,
-          'receiverIban': receiverIban,
-          'status': 'completed',
+          'status': "completed",
+          'senderName': senderSnapshot['name'],
+          'receiverName': receiverSnapshot['name'],
         });
       });
 
-      return "Transaction successful!";
+      return "✅ Transaction Successful!";
     } catch (e) {
-      return "Transaction failed: $e";
+      return "❌ Transaction failed: $e";
     }
   }
 }

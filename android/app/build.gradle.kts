@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.example.banking_app"
-    compileSdk = 34 // Ensure it’s compatible with Firebase
+    compileSdk = 35 // Ensure it’s compatible with Firebase
 
     ndkVersion = "27.0.12077973"
 
@@ -18,6 +18,7 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+        multiDexEnabled = true
     }
 
     compileOptions {
@@ -37,10 +38,14 @@ android {
 }
 
 dependencies {
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("androidx.fragment:fragment-ktx:1.6.2")
 
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.activity:activity-ktx:1.10.1")
     implementation("androidx.lifecycle:lifecycle-common-java8:2.8.7")
-    implementation(platform("com.google.firebase:firebase-bom:33.9.0"))
+    implementation(platform("com.google.firebase:firebase-bom:33.10.0"))
 
     // Firebase dependencies
     implementation("com.google.firebase:firebase-analytics")
@@ -48,6 +53,7 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging")
     implementation("com.google.firebase:firebase-firestore")
     implementation("com.google.firebase:firebase-storage")
+
 
     // Google Sign-In (if needed)
     implementation("com.google.android.gms:play-services-auth:21.3.0")

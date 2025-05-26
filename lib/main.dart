@@ -1,3 +1,4 @@
+import 'package:banking_app1/ui/screens/TransactionsScreen.dart';
 import 'package:banking_app1/ui/screens/people_screen.dart';
 import 'package:banking_app1/ui/screens/profile_screen.dart';
 import 'package:banking_app1/ui/screens/request_money_screen.dart';
@@ -48,6 +49,7 @@ class MyApp extends StatelessWidget {
             '/sendMoney': (context) => SendMoneyScreen(user: currentUser),
             '/requestMoney': (context) => RequestMoneyScreen(),
             '/people': (context) => PeopleScreen(),
+            '/transactions': (context) => TransactionsScreen(),
           },
         );
       },

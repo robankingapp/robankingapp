@@ -20,9 +20,8 @@ class AuthService {
         DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
 
         if (userDoc.exists) {
-          String role = userDoc['role'] ?? "user"; // ✅ Get user role
+          String role = userDoc['role'] ?? "user";
 
-          // ✅ Redirect based on role
           if (role == "admin") {
             Navigator.pushReplacementNamed(context, '/admin');
           } else {
@@ -48,7 +47,7 @@ class AuthService {
   String generateUniqueIBAN(String userId) {
     final random = Random();
 
-    String countryCode = "IR"; // Fixed IR for IBAN
+    String countryCode = "IR"; // IBAN
     String randomDigits = "${random.nextInt(90) + 10}"; // Random 2-digit number (10-99)
     String accountNumber = List.generate(8, (_) => random.nextInt(10)).join(); // Random 8-digit number
 

@@ -23,7 +23,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     _fetchAdminData();
   }
 
-  /// ✅ Fetch Admin's Current Funds
   Future<void> _fetchAdminData() async {
     User? user = _auth.currentUser;
     if (user == null) return;
@@ -37,7 +36,6 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     }
   }
 
-  /// ✅ Add Money to Admin's Account
   Future<void> _addMoney() async {
     double? amount = double.tryParse(_amountController.text);
     if (amount == null || amount <= 0 || amount > 100000) {
@@ -53,9 +51,8 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
       DocumentReference userRef = _firestore.collection('users').doc(user.uid);
       await userRef.update({'funds': _currentFunds + amount});
 
-      // ✅ Log Transaction
       String txId = _firestore.collection('transactions').doc().id;
-      await _firestore.collection('transactions').doc(txId).set({
+      Map<String, dynamic> txData = {
         'txNumber': txId,
         'amount': amount,
         'date': FieldValue.serverTimestamp(),
@@ -64,7 +61,15 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         'receiverId': user.uid,
         'receiverIban': _iban,
         'status': 'completed',
-      });
+      };
+
+      await _firestore.collection('transactions').doc(txId).set(txData);
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('transactions')
+          .doc(txId)
+          .set(txData);
 
       setState(() {
         _currentFunds += amount;

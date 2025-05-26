@@ -1,16 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/transaction.dart';
 
 class BankService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  /// Transfer money from sender to receiver
   Future<String> transferMoney(String senderId, String receiverIban, double amount) async {
     try {
-      // Get sender document
-      DocumentReference senderDoc = _firestore.collection('users').doc(senderId);
+      final senderRef = _firestore.collection('users').doc(senderId);
 
-      // Find receiver by IBAN
-      QuerySnapshot receiverQuery = await _firestore
+      final receiverQuery = await _firestore
           .collection('users')
           .where('iban', isEqualTo: receiverIban)
           .limit(1)
@@ -18,39 +16,61 @@ class BankService {
 
       if (receiverQuery.docs.isEmpty) return "❌ Receiver not found!";
 
-      DocumentReference receiverDoc = receiverQuery.docs.first.reference;
-      String receiverId = receiverQuery.docs.first.id;
+      final receiverRef = receiverQuery.docs.first.reference;
+      final receiverId = receiverQuery.docs.first.id;
 
-      // Generate a unique transaction ID
-      String transactionId = _firestore.collection('transactions').doc().id;
+      final transactionId = _firestore.collection('transactions').doc().id;
 
-      // Run Firestore transaction
       await _firestore.runTransaction((transaction) async {
-        DocumentSnapshot senderSnapshot = await transaction.get(senderDoc);
-        double senderBalance = (senderSnapshot['funds'] as num).toDouble();
+        final senderSnapshot = await transaction.get(senderRef);
+        final receiverSnapshot = await transaction.get(receiverRef);
+
+        final senderBalance = (senderSnapshot['funds'] as num).toDouble();
+        final receiverBalance = (receiverSnapshot['funds'] as num).toDouble();
+
         if (senderBalance < amount) throw Exception("❌ Insufficient funds.");
 
-        DocumentSnapshot receiverSnapshot = await transaction.get(receiverDoc);
-        double receiverBalance = (receiverSnapshot['funds'] as num).toDouble();
+        transaction.update(senderRef, {'funds': senderBalance - amount});
+        transaction.update(receiverRef, {'funds': receiverBalance + amount});
 
-        // Update balances
-        transaction.update(senderDoc, {'funds': senderBalance - amount});
-        transaction.update(receiverDoc, {'funds': receiverBalance + amount});
+        final txModel = TransactionModel(
+          senderUid: senderId,
+          receiverUid: receiverId,
+          senderIban: senderSnapshot['iban'],
+          receiverIban: receiverSnapshot['iban'],
+          amount: amount,
+          timestamp: Timestamp.now(),
+        );
 
-        // Add transaction record in common "transactions" collection
-        DocumentReference txnRef = _firestore.collection('transactions').doc(transactionId);
-        transaction.set(txnRef, {
-          'txNumber': transactionId,
-          'senderId': senderId,
-          'receiverId': receiverId,
-          'senderIban': senderSnapshot['iban'],
-          'receiverIban': receiverIban,
-          'amount': amount,
-          'date': FieldValue.serverTimestamp(),
-          'status': "completed",
-          'senderName': senderSnapshot['name'],
-          'receiverName': receiverSnapshot['name'],
-        });
+        final baseTxData = txModel.toFirestore()
+          ..addAll({
+            'txNumber': transactionId,
+            'senderName': senderSnapshot['name'],
+            'receiverName': receiverSnapshot['name'],
+            'status': 'completed',
+          });
+
+        // Sender view (negative amount)
+        transaction.set(
+          senderRef.collection('transactions').doc(transactionId),
+          {
+            ...baseTxData,
+            'amount': -amount,
+            'ownerUid': senderId,
+          },
+        );
+
+        // Receiver view (positive amount)
+        if (receiverId != senderId) {
+          transaction.set(
+            receiverRef.collection('transactions').doc(transactionId),
+            {
+              ...baseTxData,
+              'amount': amount,
+              'ownerUid': receiverId,
+            },
+          );
+        }
       });
 
       return "✅ Transaction Successful!";

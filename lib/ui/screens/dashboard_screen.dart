@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DashboardScreen extends StatefulWidget {
   final String uid;
+
   DashboardScreen({required this.uid});
 
   @override
@@ -33,7 +34,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ],
       ),
-
       body: StreamBuilder<DocumentSnapshot>(
         stream: _firestore.collection('users').doc(widget.uid).snapshots(),
         builder: (context, userSnapshot) {
@@ -41,6 +41,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           if (!userSnapshot.data!.exists) return Center(child: Text("User data not found"));
 
           var userData = userSnapshot.data!.data() as Map<String, dynamic>;
+          var userIban = userData['iban'] ?? '';
 
           return Padding(
             padding: EdgeInsets.all(16.0),
@@ -50,12 +51,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 Text("Welcome, ${userData['name']}!",
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                 SizedBox(height: 10),
-                Text("IBAN: ${userData['iban']}", style: TextStyle(fontSize: 16)),
+                Text("IBAN: $userIban", style: TextStyle(fontSize: 16)),
                 SizedBox(height: 10),
-                Text("Balance: \$${userData['funds'].toStringAsFixed(2)}",
+                Text("Balance: \$${(userData['funds'] ?? 0).toStringAsFixed(2)}",
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 SizedBox(height: 20),
-                Text("Recent Transactions:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text("Recent Transactions:",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
 
                 Expanded(
                   child: StreamBuilder<QuerySnapshot>(
@@ -66,19 +68,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         .orderBy('date', descending: true)
                         .snapshots(),
                     builder: (context, transactionSnapshot) {
-                      if (!transactionSnapshot.hasData) return Center(child: CircularProgressIndicator());
+                      if (!transactionSnapshot.hasData)
+                        return Center(child: CircularProgressIndicator());
+
                       var transactions = transactionSnapshot.data!.docs;
 
-                      if (transactions.isEmpty) return Center(child: Text("No transactions available"));
+                      if (transactions.isEmpty)
+                        return Center(child: Text("No transactions available"));
 
                       return ListView.builder(
                         itemCount: transactions.length,
                         itemBuilder: (context, index) {
                           var txn = transactions[index].data() as Map<String, dynamic>;
+
+                          bool isIncome = txn['receiverIban'] == userIban;
+                          String amountText = "${isIncome ? "+" : "-"}${txn['amount']}";
+                          Color amountColor = isIncome ? Colors.green : Colors.red;
+
                           return Card(
                             child: ListTile(
-                              title: Text("To: ${txn['receiverIban']}"),
-                              subtitle: Text("\$${txn['amount']}"),
+                              title: Text(
+                                isIncome
+                                    ? "From: ${txn['senderIban']}"
+                                    : "To: ${txn['receiverIban']}",
+                              ),
+                              subtitle: Text(
+                                "$amountText RON",
+                                style: TextStyle(color: amountColor, fontWeight: FontWeight.bold),
+                              ),
                               trailing: Text("${txn['date'].toDate()}"),
                             ),
                           );

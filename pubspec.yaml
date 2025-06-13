@@ -50,6 +50,9 @@ dependencies:
   permission_handler: ^11.0.1
   device_info_plus: ^10.1.0
   rxdart: ^0.28.0
+  fl_chart: ^0.66.0
+  intl: ^0.18.1
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:

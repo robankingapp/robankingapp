@@ -1,4 +1,5 @@
 import 'package:banking_app1/ui/screens/TransactionsScreen.dart';
+import 'package:banking_app1/ui/screens/card_wallet_screen.dart';
 import 'package:banking_app1/ui/screens/people_screen.dart';
 import 'package:banking_app1/ui/screens/profile_screen.dart';
 import 'package:banking_app1/ui/screens/request_money_screen.dart';
@@ -11,6 +12,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/services.dart';
+import 'package:banking_app1/ui/screens/settings_screen.dart';
+import 'package:banking_app1/ui/screens/change_password_screen.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,6 +54,10 @@ class MyApp extends StatelessWidget {
             '/requestMoney': (context) => RequestMoneyScreen(),
             '/people': (context) => PeopleScreen(),
             '/transactions': (context) => TransactionsScreen(),
+            '/settings': (context) => SettingsScreen(user: currentUser),
+            '/changePassword': (context) => const ChangePasswordScreen(),
+            '/cards': (context) => const CardWalletScreen(),
+
           },
         );
       },
